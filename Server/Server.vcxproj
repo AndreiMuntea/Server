@@ -142,6 +142,17 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Logger\src\logger.c" />
+    <ClCompile Include="Server\src\server.c" />
+    <ClCompile Include="source.c" />
+    <ClCompile Include="Utils\src\strutils.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Logger\include\logger.h" />
+    <ClInclude Include="Server\include\server.h" />
+    <ClInclude Include="Utils\include\constants.h" />
+    <ClInclude Include="Utils\include\definitions.h" />
+    <ClInclude Include="Utils\include\strutils.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
