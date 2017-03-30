@@ -32,6 +32,8 @@ int main(int argc, char* argv[])
       goto EXIT;
    }
 
+   status = Run(server);
+
 EXIT:
    UnitialiseGlobalData();
    DestroyServer(&server);

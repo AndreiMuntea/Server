@@ -27,7 +27,7 @@ STATUS InitialiseNamedPipe(LPCTSTR pipeFileName, PHANDLE pipeHandle)
       PIPE_UNLIMITED_INSTANCES,
       REPLY_BUFFER_SIZE,
       REQUEST_BUFFER_SIZE,
-      0,
+      DEFAULT_TIME_OUT_VALUE,
       NULL);
 
    if (handle == INVALID_HANDLE_VALUE)
@@ -144,49 +144,48 @@ STATUS Run(PSERVER server)
 
    for (;;)
    {
-      //TO DO ADD LOG
       if(server->closeFlag)
       {
+         _tprintf(TEXT("Encountered stop flag. Stopping!\n"));
          break;
       }
-
-      //TO DO ADD LOG
       threadContext = NULL;
       clientSession = NULL;
 
       status = InitialiseNamedPipe(server->pipeName, &pipeHandle);
-
-      //TO DO ADD LOG
       if (!SUCCESS(status))
       {
+         _tprintf(TEXT("Couldn't initialise pipe on main thread. Aborting execution!\n"));
          goto EXIT;
       }
 
+      _tprintf(TEXT("Pipe created on main thread. Awaiting clients...\n"));
       clientConnected = ConnectNamedPipe(pipeHandle, NULL);
 
-      //TO DO ADD LOG
+      
       if (clientConnected)
       {
-         //TO DO ADD LOG
+         _tprintf(TEXT("New client connected. Beginning new session.\n"));
          status = CreateClientSession(&clientSession, pipeHandle);
          if (!SUCCESS(status))
          {
+            _tprintf(TEXT("Couldn't begin a new session for new client. Aborting!\n"));
             goto EXIT;
          }
 
-         //TO DO ADD LOG
          status = CreateThreadContext(&threadContext, Reference(server), clientSession);
          if (!SUCCESS(status))
          {
+            _tprintf(TEXT("Couldn't create a thread context for new client. Aborting!\n"));
             goto EXIT;
          }
 
-         //TO DO ADD LOG
-         ServeClient(threadContext);
+         _tprintf(TEXT("Initiating new session with client...\n"));
+         ServeClient((LPVOID)threadContext);
       }
       else
       {
-         //TO DO ADD LOG
+         _tprintf(TEXT("No client connected!\n"));
          CloseHandle(pipeHandle);
       }
    }
@@ -204,7 +203,6 @@ EXIT:
 DWORD WINAPI ServeClient(LPVOID lpvParam)
 {
    PTHREAD_CONTEXT threadContext;
-   HANDLE heapHandle;
    TCHAR* requestBuffer;
    TCHAR* replyBuffer;
    STATUS status;
@@ -221,13 +219,12 @@ DWORD WINAPI ServeClient(LPVOID lpvParam)
    replyBytes = 0;
    status = EXIT_SUCCESS_STATUS;
    threadContext = NULL;
-   heapHandle = GetProcessHeap();
    requestBuffer = NULL;
    replyBuffer = NULL;
 
-   //TO DO ADD LOG
    if (NULL == lpvParam)
    {
+      _tprintf(TEXT("Null parameter received. Aborting execution!\n"));
       status = NULL_POINTER;
       goto EXIT;
    }
@@ -236,23 +233,25 @@ DWORD WINAPI ServeClient(LPVOID lpvParam)
    pipeHandle = threadContext->clientSession->pipeHandle;
 
    //TO DO ADD LOG
-   requestBuffer = (TCHAR*)HeapAlloc(heapHandle, 0, REQUEST_BUFFER_SIZE * sizeof(TCHAR));
+   requestBuffer = (TCHAR*)malloc(REQUEST_BUFFER_SIZE * sizeof(TCHAR));
    if (NULL == requestBuffer)
    {
+      _tprintf(TEXT("Not enough memory for request buffer. Aborting execution!\n"));
       status = BAD_ALLOCATION;
       goto EXIT;
    }
 
    //TO DO ADD LOG
-   replyBuffer = (TCHAR*)HeapAlloc(heapHandle, 0, REPLY_BUFFER_SIZE * sizeof(TCHAR));
+   replyBuffer = (TCHAR*)malloc(REPLY_BUFFER_SIZE * sizeof(TCHAR));
    if (NULL == replyBuffer)
    {
+      _tprintf(TEXT("Not enough memory for reply buffer. Aborting execution!\n"));
       status = BAD_ALLOCATION;
       goto EXIT;
    }
 
    //TO DO ADD LOG SUCCESS
-
+   _tprintf(TEXT("Successfuly allocated all resources.\n"));
 
    successOperation = ReadFile(
       pipeHandle,
@@ -267,19 +266,19 @@ DWORD WINAPI ServeClient(LPVOID lpvParam)
       //TO DO ADD LOG
       if(GetLastError() == ERROR_BROKEN_PIPE)
       {
+         _tprintf(TEXT("Client disconnected.\n"));
          status = ERROR_BROKEN_PIPE;
          goto EXIT;
       }
       else
       {
+         _tprintf(TEXT("Read file failed. Aborting execution.\n"));
          status = GetLastError();
          goto EXIT;
       }
    }
-   
 
-   //DELETE ME
-   _tprintf(TEXT("Am primit: %s\n"), requestBuffer);
+   _tprintf(TEXT("Sucessfuly received message: %s.\n"), requestBuffer);
    successOperation = WriteFile(
       pipeHandle,
       requestBuffer,
@@ -290,6 +289,7 @@ DWORD WINAPI ServeClient(LPVOID lpvParam)
 
    if(!successOperation ||  writtenBytes != readBytes)
    {
+      _tprintf(TEXT("Write file failed. Aborting execution.\n"));
       status = GetLastError();
       goto EXIT;
    }
@@ -299,19 +299,15 @@ DWORD WINAPI ServeClient(LPVOID lpvParam)
    DisconnectNamedPipe(pipeHandle);
 
 
+   //DELETE ME!!!!!!!!!!!!!!!!!!!!
+   SetStopFlag(threadContext->server);
+
+
 EXIT:
-   if (NULL != requestBuffer)
-   {
-      HeapFree(heapHandle, 0, requestBuffer);
-   }
-   if (NULL != replyBuffer)
-   {
-      HeapFree(heapHandle, 0, replyBuffer);
-   }
-   CloseHandle(heapHandle);
+   free(requestBuffer);
+   free(replyBuffer);
    DestroyThreadContext(&threadContext);
 
-   //TO DO ADD LOG
-
+   _tprintf(TEXT("Finishing thread execution.\n"));
    return (DWORD)status;
 }

@@ -12,4 +12,6 @@
 
 #define DEFAULT_LOG_FILE_NAME    TEXT("log.txt")
 
+#define DEFAULT_TIME_OUT_VALUE   1
+
 #endif //UTILS_CONSTANTS_H
