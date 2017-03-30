@@ -12,8 +12,21 @@ typedef struct _LOGGER
 
 }LOGGER, *PLOGGER;
 
+
+/*
+* Creates a new instance of a LOGGER
+* @params: logger - a PLOGGER*
+* @params: logFileName - a LPCTSTR, the name of log file
+*                      - if NULL, the default name will be used instead
+* @returns: STATUS - EXIT_SUCCESS_STATUS if instance is created without errors
+*                  - error code otherwise
+*/
 STATUS CreateLogger(PLOGGER* logger, LPCTSTR fileName);
 
+/**
+* Destroys an instance of a LOGGER
+* @params: logger - a PLOGGER*, the instance to be destroyed
+*/
 void DestroyLogger(PLOGGER* logger);
 
 #endif //LOGGER_LOGGER_H

@@ -10,8 +10,19 @@ typedef struct _GLOBAL_DATA
 
 extern GLOBAL_DATA globals;
 
+/*
+* Initialise the global data
+* @params: logFileName - a LPCTSTR, the name of log file
+* 
+* @returns: STATUS - EXIT_SUCCESS_STATUS if global data is initialised without errors
+*                  - error code otherwise
+*/
 STATUS InitGlobalData(LPCTSTR logFileName);
 
+/*
+ * Resets the global data
+ * Deallocate every resource used by global data
+ */
 void UnitialiseGlobalData();
 
 #endif //SERVER_GLOBAL_DATA_H
