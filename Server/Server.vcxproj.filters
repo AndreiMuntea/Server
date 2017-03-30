@@ -27,6 +27,15 @@
     <ClCompile Include="Server\src\server.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Server\src\global_data.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Server\src\client_session.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Server\src\thread_context.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Utils\include\definitions.h">
@@ -42,6 +51,15 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Server\include\server.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Server\include\global_data.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Server\include\client_session.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Server\include\thread_context.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

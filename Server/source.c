@@ -8,6 +8,7 @@
 
 
 #include "Server/include/server.h"
+#include "Server/include/global_data.h"
 
 
 int main(int argc, char* argv[])
@@ -19,17 +20,24 @@ int main(int argc, char* argv[])
    server = NULL;
    status = EXIT_SUCCESS_STATUS;
 
-   status = CreateServer(&server, NULL, NULL);
+   status = InitGlobalData(NULL);
+   if(!SUCCESS(status))
+   {
+      goto EXIT;
+   }
+
+   status = CreateServer(&server, NULL);
    if(!SUCCESS(status))
    {
       goto EXIT;
    }
 
 EXIT:
+   UnitialiseGlobalData();
    DestroyServer(&server);
    
    printf("Execution terminated with exitcode %d\n", status);
-   
+
    _CrtDumpMemoryLeaks();
    return status;
 }
