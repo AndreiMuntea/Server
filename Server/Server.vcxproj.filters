@@ -18,9 +18,6 @@
     <ClCompile Include="source.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Utils\src\strutils.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="Logger\src\logger.c">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -36,17 +33,26 @@
     <ClCompile Include="Server\src\thread_context.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Helper\src\strutils.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Utils\src\list.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="User\src\user.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Protocols\src\protocols.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Utils\src\concurent_queue.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Utils\src\thread_pool.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Utils\include\definitions.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="Utils\include\constants.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="Utils\include\strutils.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="Logger\include\logger.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -60,6 +66,30 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Server\include\thread_context.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Helper\include\constants.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Helper\include\strutils.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Utils\include\list.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="User\include\user.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Protocols\include\protocols.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Protocols\include\definitions.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Utils\include\concurent_queue.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Utils\include\thread_pool.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

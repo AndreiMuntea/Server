@@ -8,7 +8,7 @@ typedef long STATUS;
 #define INTERNAL_ERROR_BITS         0xF0000000
 
 #define EXIT_SUCCESS_STATUS         0x00000000
-#define SUCCESS(status)             (!((status) & ERROR_BITS))
+#define SUCCESS(status)             (!((status) & (ERROR_BITS | WARNING_BITS)))
 #define INTERNAL_ERROR(status)      ((status) & INTERNAL_ERROR_BITS)
 
 #define BAD_ALLOCATION              0x10000000
@@ -19,5 +19,15 @@ typedef long STATUS;
 #define INSUFICIENT_BUFFER          0x60000000
 #define CRITICAL_SECTION_FAILURE    0x70000000
 #define PIPE_FAILURE                0x80000000
+#define TIMEOUT_FAILURE             0x90000000
+#define NOT_ENOUGH_MEMORY           0xA0000000
+#define HANDLE_FAILURE              0xB0000000
+
+
+#define IDEX_OUT_OF_BOUNDS          0x00010000
+#define EMPTY_QUEUE                 0x00020000
+#define SHUTDOWN_PENDING            0x00030000
+#define CREATE_THREAD_FAILED        0x00040000
+#define PENDING_SHUTDOWN            0x00050000
             
 #endif //UTILS_DEFINITIONS_H

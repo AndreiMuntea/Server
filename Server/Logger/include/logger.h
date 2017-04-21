@@ -2,7 +2,7 @@
 #define LOGGER_LOGGER_H
 
 #include <Windows.h>
-#include "../../Utils/include/definitions.h"
+#include "../../Server/include/client_session.h"
 
 
 typedef struct _LOGGER
@@ -16,17 +16,19 @@ typedef struct _LOGGER
 /*
 * Creates a new instance of a LOGGER
 * @params: logger - a PLOGGER*
-* @params: logFileName - a LPCTSTR, the name of log file
+* @params: logFileName - a LPCSTR, the name of log file
 *                      - if NULL, the default name will be used instead
 * @returns: STATUS - EXIT_SUCCESS_STATUS if instance is created without errors
 *                  - error code otherwise
 */
-STATUS CreateLogger(PLOGGER* logger, LPCTSTR fileName);
+STATUS CreateLogger(PLOGGER* logger, LPCSTR fileName);
 
 /**
 * Destroys an instance of a LOGGER
 * @params: logger - a PLOGGER*, the instance to be destroyed
 */
 void DestroyLogger(PLOGGER* logger);
+
+STATUS Log(PLOGGER logger, int noMessages, ...);
 
 #endif //LOGGER_LOGGER_H

@@ -85,7 +85,7 @@
     <ClCompile>
       <PrecompiledHeader>
       </PrecompiledHeader>
-      <WarningLevel>Level3</WarningLevel>
+      <WarningLevel>Level4</WarningLevel>
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
@@ -143,22 +143,32 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Logger\src\logger.c" />
+    <ClCompile Include="Protocols\src\protocols.c" />
     <ClCompile Include="Server\src\client_session.c" />
     <ClCompile Include="Server\src\global_data.c" />
     <ClCompile Include="Server\src\server.c" />
     <ClCompile Include="Server\src\thread_context.c" />
     <ClCompile Include="source.c" />
-    <ClCompile Include="Utils\src\strutils.c" />
+    <ClCompile Include="Helper\src\strutils.c" />
+    <ClCompile Include="User\src\user.c" />
+    <ClCompile Include="Utils\src\concurent_queue.c" />
+    <ClCompile Include="Utils\src\list.c" />
+    <ClCompile Include="Utils\src\thread_pool.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Logger\include\logger.h" />
+    <ClInclude Include="Protocols\include\protocols.h" />
     <ClInclude Include="Server\include\client_session.h" />
     <ClInclude Include="Server\include\global_data.h" />
     <ClInclude Include="Server\include\server.h" />
     <ClInclude Include="Server\include\thread_context.h" />
-    <ClInclude Include="Utils\include\constants.h" />
-    <ClInclude Include="Utils\include\definitions.h" />
-    <ClInclude Include="Utils\include\strutils.h" />
+    <ClInclude Include="Helper\include\constants.h" />
+    <ClInclude Include="User\include\user.h" />
+    <ClInclude Include="Protocols\include\definitions.h" />
+    <ClInclude Include="Helper\include\strutils.h" />
+    <ClInclude Include="Utils\include\concurent_queue.h" />
+    <ClInclude Include="Utils\include\list.h" />
+    <ClInclude Include="Utils\include\thread_pool.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

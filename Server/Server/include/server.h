@@ -1,13 +1,15 @@
 #ifndef SERVER_SERVER_H
 #define SERVER_SERVER_H
 #include "../../Logger/include/logger.h"
+#include "../../Utils/include/list.h"
 
 
 typedef struct _SERVER
 {
-   LPTSTR pipeName;
+   LPSTR pipeName;
    BOOL closeFlag;
    ULONG64 refCounter;
+   PLIST users;
 
 }SERVER, *PSERVER;
 
@@ -15,12 +17,13 @@ typedef struct _SERVER
 /*
 * Creates a new instance of a SERVER
 * @params: server - a PSERVER*
-* @params: pipeFileName - a LPCTSTR, the pipe name
+* @params: pipeFileName - a LPCSTR, the pipe name
 *                       - if NULL, the default name will be used instead
+*          usersFileName - a LPCSTR the name of the file containing all users
 * @returns: STATUS - EXIT_SUCCESS_STATUS if instance is created without errors
 *                  - error code otherwise
 */
-STATUS CreateServer(PSERVER* server, LPCTSTR pipeFileName);
+STATUS CreateServer(PSERVER* server, LPCSTR pipeFileName, LPCSTR usersFileName);
 
 
 /*

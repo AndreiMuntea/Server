@@ -2,7 +2,8 @@
 #define SERVER_CLIENT_SESSION_H
 
 #include <Windows.h>
-#include "../../Utils/include/definitions.h"
+#include "../../Protocols/include/definitions.h"
+
 
 typedef struct _CLIENT_SESSION
 {

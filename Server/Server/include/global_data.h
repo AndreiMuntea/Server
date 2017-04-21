@@ -17,7 +17,7 @@ extern GLOBAL_DATA globals;
 * @returns: STATUS - EXIT_SUCCESS_STATUS if global data is initialised without errors
 *                  - error code otherwise
 */
-STATUS InitGlobalData(LPCTSTR logFileName);
+STATUS InitGlobalData(LPCSTR logFileName);
 
 /*
  * Resets the global data

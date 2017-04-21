@@ -3,7 +3,7 @@
 
 #include <Windows.h>
 
-#include "definitions.h"
+#include "../../Protocols/include/definitions.h"
 
 /*
  * Creates the pipe name appending the specified prefix;
@@ -12,6 +12,11 @@
  * @returns: STATUS - EXIT_SUCCESS_STATUS if successful
  *                  - error code otherwise 
  */
-STATUS CreatePipeName(LPTSTR* dest, LPCTSTR source);
+STATUS CreatePipeName(LPSTR* dest, LPCSTR source);
+
+/*
+ * Gets the message for the coresponding status
+ */
+LPSTR GetErrorMessage(STATUS status);
 
 #endif //UTILS_STRUTILS_H

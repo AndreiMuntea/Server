@@ -2,7 +2,7 @@
 
 GLOBAL_DATA globals;
 
-STATUS InitGlobalData(LPCTSTR logFileName)
+STATUS InitGlobalData(LPCSTR logFileName)
 {
    STATUS status;
    PLOGGER tempLogger;

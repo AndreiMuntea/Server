@@ -4,11 +4,11 @@
 #include "../include/constants.h"
 
 
-STATUS CreatePipeName(LPTSTR* dest, LPCTSTR source)
+STATUS CreatePipeName(LPSTR* dest, LPCSTR source)
 {
    STATUS status;
-   LPTSTR temp;
-   LPCTSTR copySource;
+   LPSTR temp;
+   LPCSTR copySource;
    size_t finalSize;
    size_t prefixSize;
    size_t sourceSize;
@@ -35,14 +35,14 @@ STATUS CreatePipeName(LPTSTR* dest, LPCTSTR source)
    }
 
    // Source size
-   if (StringCchLength(copySource,STRSAFE_MAX_CCH, &sourceSize) != S_OK)
+   if (StringCchLengthA(copySource,STRSAFE_MAX_CCH, &sourceSize) != S_OK)
    {
       status = INVALID_PARAMETER;
       goto EXIT;
    }
 
    // Prefix size;
-   if (StringCchLength(PIPE_PREFIX,STRSAFE_MAX_CCH, &prefixSize) != S_OK)
+   if (StringCchLengthA(PIPE_PREFIX,STRSAFE_MAX_CCH, &prefixSize) != S_OK)
    {
       status = INVALID_PARAMETER;
       goto EXIT;
@@ -56,7 +56,7 @@ STATUS CreatePipeName(LPTSTR* dest, LPCTSTR source)
       goto EXIT;
    }
 
-   temp = (LPTSTR)malloc(finalSize * sizeof(TCHAR));
+   temp = (LPSTR)malloc(finalSize * sizeof(CHAR));
    if (NULL == temp)
    {
       status = BAD_ALLOCATION;
@@ -64,7 +64,7 @@ STATUS CreatePipeName(LPTSTR* dest, LPCTSTR source)
    }
 
    // Copy the pipe prefix
-   result = StringCchCopy(temp, finalSize, PIPE_PREFIX);
+   result = StringCchCopyA(temp, finalSize, PIPE_PREFIX);
    if (result != S_OK)
    {
       status = result;
@@ -72,7 +72,7 @@ STATUS CreatePipeName(LPTSTR* dest, LPCTSTR source)
    }
 
    // Copy the actual pipe name
-   result = StringCchCat(temp, finalSize, copySource);
+   result = StringCchCatA(temp, finalSize, copySource);
    if (result != S_OK)
    {
       status = result;
@@ -89,4 +89,49 @@ EXIT:
    }
 
    return status;
+}
+
+CHAR GetDigit(int digit)
+{
+   CHAR res;
+   if (digit < 10) res = (CHAR)('0' + digit);
+   else res = (CHAR)('A' + digit - 10);
+   return res;
+}
+
+
+LPSTR GetErrorMessage(STATUS status)
+{
+   LPSTR buff;
+   size_t i;
+
+   buff = NULL;
+   i = 0;
+
+   buff = (LPSTR)malloc(11 * sizeof(CHAR));
+   if(buff == NULL)
+   {
+      goto EXIT;
+   }
+
+   buff[0] = '0';
+   buff[1] = 'x';
+   buff[10] = '\0';
+   i = 9;
+
+   while(status > 0)
+   {
+      buff[i] = GetDigit(status % 16);
+      status /= 16;
+      --i;
+   }
+
+   while (i >= 2)
+   {
+      buff[i] = GetDigit(0);
+      --i;
+   } 
+
+EXIT:
+   return buff;
 }
