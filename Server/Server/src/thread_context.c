@@ -38,8 +38,6 @@ EXIT:
 
 void DestroyThreadContext(PTHREAD_CONTEXT* threadContext)
 {
-   DestroyServer(&(*threadContext)->server);
-   TerminateClientSession(&(*threadContext)->clientSession);
    free(*threadContext);
    *threadContext = NULL;
 }

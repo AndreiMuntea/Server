@@ -142,22 +142,14 @@ void DestroyThreadPool(PTHREAD_POOL* threadPool)
    }
 
    tempThreadPool = *threadPool;
-   for (i = 0; i < tempThreadPool->noWorkers; ++i)
-   {
-      if (NULL != tempThreadPool->hThreadsArray[i])
-      {
-         waitFor++;
-      }
-   }
 
    AbortExecution(tempThreadPool);
-   WaitForMultipleObjects(waitFor, tempThreadPool->hThreadsArray, TRUE, INFINITE);
 
    for (i = 0; i < tempThreadPool->noWorkers; ++i)
    {
       if (NULL != tempThreadPool->hThreadsArray[i])
       {
-         CloseHandle(tempThreadPool->hThreadsArray[i]);
+         WaitForSingleObject(tempThreadPool->hThreadsArray[i], INFINITE);
          tempThreadPool->hThreadsArray[i] = NULL;
       }
    }

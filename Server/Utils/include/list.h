@@ -26,6 +26,8 @@ STATUS CreateList(PLIST* list, void(*destructorFunction)(LPVOID));
 
 void DestroyList(PLIST* list);
 
+BOOL ExistsElement(PLIST list, LPVOID element, BOOL(*compareFunction)(LPVOID, LPVOID));
+
 STATUS AddElement(PLIST list, LPVOID data);
 
 #endif //UTILS_LIST_H

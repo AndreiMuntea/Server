@@ -9,10 +9,11 @@ typedef struct _USER
 {
    LPSTR userName;
    LPSTR password;
-   BOOL loggedIn;
 }USER, *PUSER;
 
 STATUS CreateUser(PUSER* user, LPCSTR userName, LPCSTR password);
+
+BOOL EqualUsers(PUSER firstUser, PUSER secondUser);
 
 void DestroyUser(PUSER* user);
 

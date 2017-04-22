@@ -234,3 +234,29 @@ EXIT:
    return status;
 }
 
+BOOL ExistsElement(PLIST list, LPVOID element, BOOL(*compareFunction)(LPVOID, LPVOID))
+{
+
+   PLIST_NODE current;
+   BOOL found;
+   
+   found = FALSE;
+   current = NULL;
+
+   if(NULL == list)
+   {
+      goto EXIT;
+   }
+
+   current = list->head;
+
+   while(current != NULL && !found)
+   {
+      found = compareFunction(element, current->data);
+      current = current->next;
+   }
+
+ EXIT:
+   return found;
+
+}

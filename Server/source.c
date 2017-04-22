@@ -41,8 +41,10 @@ int main(int argc, char* argv[])
    
    STATUS status;
    PSERVER server;
+   HANDLE runningThread;
    
    server = NULL;
+   runningThread = NULL;
    status = EXIT_SUCCESS_STATUS;
 
    status = InitGlobalData(NULL);
@@ -51,13 +53,23 @@ int main(int argc, char* argv[])
       goto EXIT;
    }
 
-   status = CreateServer(&server, NULL, DEFAULT_USER_FILE_NAME);
+   status = CreateServer(&server, NULL, DEFAULT_USER_FILE_NAME, 4);
    if(!SUCCESS(status))
    {
       goto EXIT;
    }
 
-   //status = Run(server);
+   runningThread = CreateThread(NULL, 0, Run, server, 0, NULL);
+   if(NULL == runningThread)
+   {
+      status = CREATE_THREAD_FAILED;
+      goto EXIT;
+   }
+   server->runningThread = runningThread;
+   WaitForSingleObject(runningThread, INFINITE);
+   
+   
+   /*
    PTHREAD_POOL thr;
    PUSR a1 = (PUSR)malloc(sizeof(PUSR)); a1->data = "Ana are mere";
    PUSR a2 = (PUSR)malloc(sizeof(PUSR)); a2->data = "Marian nu are mere";
@@ -69,11 +81,13 @@ int main(int argc, char* argv[])
    AddTask(thr, a4);
    AddTask(thr, a3);
    DestroyThreadPool(&thr);
+   */
 
 EXIT:
    UnitialiseGlobalData();
    DestroyServer(&server);
-   
+   runningThread = NULL;
+
    printf("Execution terminated with exitcode %d\n", status);
 
    _CrtDumpMemoryLeaks();

@@ -1,0 +1,49 @@
+[INFO] Pipe created on main thread. Awaiting clients...
+[INFO] New client connected. Beginning new session.
+[INFO] Initiating new session with client...
+[INFO] Pipe created on main thread. Awaiting clients...
+[INFO] Received login request for user Ana Maria.
+[INFO] Login response for user Ana Maria finished with exitcode:0x00000000
+[INFO] Received encrypt request for user Ana Maria.
+[INFO] Encrypt response for user Ana Maria finished with exitcode:0x00000000
+[INFO] Received encrypt request for user Ana Maria.
+[INFO] Encrypt response for user Ana Maria finished with exitcode:0x00000000
+[INFO] Received encrypt request for user Ana Maria.
+[INFO] Encrypt response for user Ana Maria finished with exitcode:0x00000000
+[INFO] Received encrypt request for user Ana Maria.
+[INFO] Encrypt response for user Ana Maria finished with exitcode:0x00000000
+[INFO] Received encrypt request for user Ana Maria.
+[INFO] Encrypt response for user Ana Maria finished with exitcode:0x00000000
+[INFO] Received encrypt request for user Ana Maria.
+[INFO] Encrypt response for user Ana Maria finished with exitcode:0x00000000
+[INFO] Received encrypt request for user Ana Maria.
+[INFO] Encrypt response for user Ana Maria finished with exitcode:0x00000000
+[INFO] Received encrypt request for user Ana Maria.
+[INFO] Encrypt response for user Ana Maria finished with exitcode:0x00000000
+[INFO] Received logout request for user Ana Maria.
+[INFO] Logout response for user Ana Maria finished with exitcode:0x00000000
+[INFO] Finishing thread execution. Exit code: 0x00000000
+[INFO] New client connected. Beginning new session.
+[INFO] Initiating new session with client...
+[INFO] Pipe created on main thread. Awaiting clients...
+[INFO] Received login request for user Ana Maria.
+[INFO] Login response for user Ana Maria finished with exitcode:0x00000000
+[INFO] Received encrypt request for user Ana Maria.
+[INFO] Encrypt response for user Ana Maria finished with exitcode:0x00000000
+[INFO] Received encrypt request for user Ana Maria.
+[INFO] Encrypt response for user Ana Maria finished with exitcode:0x00000000
+[INFO] Received encrypt request for user Ana Maria.
+[INFO] Encrypt response for user Ana Maria finished with exitcode:0x00000000
+[INFO] Received encrypt request for user Ana Maria.
+[INFO] Encrypt response for user Ana Maria finished with exitcode:0x00000000
+[INFO] Received encrypt request for user Ana Maria.
+[INFO] Encrypt response for user Ana Maria finished with exitcode:0x00000000
+[INFO] Received encrypt request for user Ana Maria.
+[INFO] Encrypt response for user Ana Maria finished with exitcode:0x00000000
+[INFO] Received encrypt request for user Ana Maria.
+[INFO] Encrypt response for user Ana Maria finished with exitcode:0x00000000
+[INFO] Received encrypt request for user Ana Maria.
+[INFO] Encrypt response for user Ana Maria finished with exitcode:0x00000000
+[INFO] Received logout request for user Ana Maria.
+[INFO] Logout response for user Ana Maria finished with exitcode:0x00000000
+[INFO] Finishing thread execution. Exit code: 0x00000000

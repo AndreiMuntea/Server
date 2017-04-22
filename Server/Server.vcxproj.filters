@@ -80,9 +80,6 @@
     <ClInclude Include="User\include\user.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Protocols\include\protocols.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="Protocols\include\definitions.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -90,6 +87,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Utils\include\thread_pool.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Protocols\include\protocols.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

@@ -77,7 +77,6 @@ STATUS CreateUser(PUSER* user, LPCSTR userName, LPCSTR password)
       goto EXIT;
    }
 
-   tempUser->loggedIn = FALSE;
    tempUser->userName = tempUserName;
    tempUser->password = tempPassword;
 
@@ -113,4 +112,15 @@ void DestroyUser(PUSER* user)
 
 EXIT:
    return;
+}
+
+
+BOOL EqualUsers(PUSER firstUser, PUSER secondUser)
+{
+   BOOL res;
+   
+   res = (strcmp(firstUser->userName, secondUser->userName) == 0) &&
+      (strcmp(firstUser->password, secondUser->password) == 0);
+
+   return res;
 }

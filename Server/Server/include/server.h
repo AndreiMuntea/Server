@@ -10,6 +10,14 @@ typedef struct _SERVER
    BOOL closeFlag;
    ULONG64 refCounter;
    PLIST users;
+   PCLIENT_SESSION* loggedClients;
+   HANDLE* hIOThreadsArray;
+   DWORD* dwIOThreadsArray;
+   DWORD noMaxIOThreads;
+   DWORD activeThreads;
+   DWORD servedClients;
+   HANDLE pendingPipe;
+   HANDLE runningThread;
 
 }SERVER, *PSERVER;
 
@@ -23,7 +31,7 @@ typedef struct _SERVER
 * @returns: STATUS - EXIT_SUCCESS_STATUS if instance is created without errors
 *                  - error code otherwise
 */
-STATUS CreateServer(PSERVER* server, LPCSTR pipeFileName, LPCSTR usersFileName);
+STATUS CreateServer(PSERVER* server, LPCSTR pipeFileName, LPCSTR usersFileName, DWORD maxIOThreadsNumber);
 
 
 /*
@@ -36,10 +44,10 @@ PSERVER Reference(PSERVER server);
 
 /*
  * The accepting clients function
- * @params: server  - a PSERVER*
- * @returns: STATUS - the exitcode of function
+ * @params: argument  - a PSERVER*
+ * @returns: DWORD WINAPI - the exitcode of function
  */
-STATUS Run(PSERVER server);
+DWORD WINAPI Run(LPVOID argument);
 
 /**
 * Destroys an instance of a SERVER

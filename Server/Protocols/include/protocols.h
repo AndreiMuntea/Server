@@ -5,33 +5,35 @@
 
 #include "definitions.h"
 
-typedef enum _REQUEST_TYPE
-{
-   LOGIN_REQUEST, LOGOUT_REQUEST, INITILIASE_CONNECTION_REQUEST, ENCRYPT_REQUEST
-}REQUEST_TYPE;
 
-typedef enum _RESPONSE_TYPE
+#define MAX_MESSAGE_LENGTH 512
+#define MAX_BUFFER_SIZE MAX_MESSAGE_LENGTH - sizeof(MESSAGE_TYPE) - sizeof(DWORD)
+
+typedef enum _MESSAGE_TYPE
 {
+   LOGIN_REQUEST, LOGOUT_REQUEST, ENCRYPT_REQUEST,
    OK_RESPONSE, FAILURE_RESPONSE, ENCRYPT_RESPONSE
-}RESPONSE_TYPE;
-
-typedef union _MESSAGE_TYPE
-{
-   REQUEST_TYPE request;
-   RESPONSE_TYPE response;
 }MESSAGE_TYPE;
+
 
 typedef struct _MESSAGE
 {
    MESSAGE_TYPE messageType;
    DWORD messageLength;
-   LPSTR messageBuffer;
+   CHAR messageBuffer[MAX_BUFFER_SIZE];
 
 }MESSAGE, *PMESSAGE;
 
+void DestroyMessage(PMESSAGE* message);
+
+STATUS CreateMessage(PMESSAGE* message);
 
 STATUS WriteMessage(HANDLE pipeHandle, PMESSAGE message);
 
 STATUS ReadMessage(HANDLE pipeHandle, PMESSAGE* message);
+
+STATUS AddBuffer(PMESSAGE message, LPCSTR buffer, BOOL addNullTerminator);
+
+STATUS FullCopyBuffer(PMESSAGE message, LPCSTR buffer, DWORD bufferSize);
 
 #endif //PROTOCOLS_PROTOCOLS_H

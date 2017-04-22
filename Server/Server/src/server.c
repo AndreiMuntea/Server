@@ -1,3 +1,6 @@
+#include <stdio.h>
+#include <Strsafe.h>
+
 #include "../include/server.h"
 #include "../../Helper/include/strutils.h"
 #include "../../Helper/include/constants.h"
@@ -5,7 +8,9 @@
 #include "../include/thread_context.h"
 #include "../include/global_data.h"
 #include "../../User/include/user.h"
-#include <stdio.h>
+#include "../../Utils/include/thread_pool.h"
+#include "../../Protocols/include/protocols.h"
+
 
 STATUS InitialiseNamedPipe(LPCSTR pipeFileName, PHANDLE pipeHandle)
 {
@@ -26,8 +31,8 @@ STATUS InitialiseNamedPipe(LPCSTR pipeFileName, PHANDLE pipeHandle)
       PIPE_ACCESS_DUPLEX,
       PIPE_TYPE_MESSAGE | PIPE_READMODE_MESSAGE | PIPE_WAIT,
       PIPE_UNLIMITED_INSTANCES,
-      REPLY_BUFFER_SIZE,
-      REQUEST_BUFFER_SIZE,
+      MAX_BUFFER_SIZE, //response buffer
+      MAX_BUFFER_SIZE, //request buffer
       DEFAULT_TIME_OUT_VALUE,
       NULL);
 
@@ -222,17 +227,27 @@ EXIT:
    return status;
 }
 
-STATUS CreateServer(PSERVER* server, LPCSTR pipeFileName, LPCSTR usersFileName)
+STATUS CreateServer(PSERVER* server, LPCSTR pipeFileName, LPCSTR usersFileName, DWORD maxIOThreadsNumber)
 {
    STATUS status;
    PSERVER tempServer;
    LPSTR pipeName;
-   PLIST tempList;
+   PLIST tempListUsers;
+   PCLIENT_SESSION* tempLoggedClients;
+   HANDLE* tempHIOThreadsArray;
+   HANDLE runningThread;
+   DWORD* tempDWIOThreadsArray;
+   DWORD i;
 
-   tempList = NULL;
+   i = 0;
+   runningThread = NULL;
+   tempListUsers = NULL;
    status = EXIT_SUCCESS_STATUS;
    tempServer = NULL;
    pipeName = NULL;
+   tempLoggedClients = NULL;
+   tempHIOThreadsArray = NULL;
+   tempDWIOThreadsArray = NULL;
 
    CreatePipeName(&pipeName, pipeFileName);
    if (!SUCCESS(status))
@@ -240,9 +255,30 @@ STATUS CreateServer(PSERVER* server, LPCSTR pipeFileName, LPCSTR usersFileName)
       goto EXIT;
    }
 
-   status = LoadClients(&tempList, usersFileName);
+   status = LoadClients(&tempListUsers, usersFileName);
    if (!SUCCESS(status))
    {
+      goto EXIT;
+   }
+
+   tempLoggedClients = (PCLIENT_SESSION*)malloc(maxIOThreadsNumber * sizeof(PCLIENT_SESSION));
+   if (NULL == tempLoggedClients)
+   {
+      status = BAD_ALLOCATION;
+      goto EXIT;
+   }
+
+   tempHIOThreadsArray = (HANDLE*)malloc(maxIOThreadsNumber * sizeof(HANDLE));
+   if (NULL == tempHIOThreadsArray)
+   {
+      status = BAD_ALLOCATION;
+      goto EXIT;
+   }
+
+   tempDWIOThreadsArray = (DWORD*)malloc(maxIOThreadsNumber * sizeof(DWORD));
+   if (NULL == tempDWIOThreadsArray)
+   {
+      status = BAD_ALLOCATION;
       goto EXIT;
    }
 
@@ -256,7 +292,22 @@ STATUS CreateServer(PSERVER* server, LPCSTR pipeFileName, LPCSTR usersFileName)
    tempServer->pipeName = pipeName;
    tempServer->closeFlag = FALSE;
    tempServer->refCounter = 1;
-   tempServer->users = tempList;
+   tempServer->users = tempListUsers;
+   tempServer->noMaxIOThreads = maxIOThreadsNumber;
+   tempServer->servedClients = 0;
+   tempServer->pendingPipe = INVALID_HANDLE_VALUE;
+   tempServer->dwIOThreadsArray = tempDWIOThreadsArray;
+   tempServer->hIOThreadsArray = tempHIOThreadsArray;
+   tempServer->loggedClients = tempLoggedClients;
+   tempServer->activeThreads = 0;
+   tempServer->runningThread = runningThread;
+
+   for (i = 0; i < maxIOThreadsNumber; ++i)
+   {
+      tempDWIOThreadsArray[i] = 0;
+      tempHIOThreadsArray[i] = NULL;
+      tempLoggedClients[i] = NULL;
+   }
 
    *server = tempServer;
 
@@ -264,7 +315,10 @@ STATUS CreateServer(PSERVER* server, LPCSTR pipeFileName, LPCSTR usersFileName)
 EXIT:
    if (!SUCCESS(status))
    {
-      DestroyList(&tempList);
+      free(tempDWIOThreadsArray);
+      free(tempHIOThreadsArray);
+      free(tempLoggedClients);
+      DestroyList(&tempListUsers);
       DestroyServer(&tempServer);
    }
 
@@ -273,6 +327,10 @@ EXIT:
 
 void DestroyServer(PSERVER* server)
 {
+   UINT32 i;
+
+   i = 0;
+
    if (NULL == server)
    {
       goto EXIT;
@@ -290,6 +348,25 @@ void DestroyServer(PSERVER* server)
    }
    DestroyList(&(*server)->users);
 
+   for (i = 0; i < (*server)->noMaxIOThreads; ++i)
+   {
+      if (NULL != (*server)->hIOThreadsArray[i])
+      {
+         WaitForSingleObject((*server)->hIOThreadsArray[i], INFINITE);
+         (*server)->hIOThreadsArray[i] = NULL;
+         TerminateClientSession(&(*server)->loggedClients[i]);
+      }
+   }
+
+   free((*server)->dwIOThreadsArray);
+   free((*server)->hIOThreadsArray);
+   free((*server)->loggedClients);
+
+   if ((*server)->pendingPipe != INVALID_HANDLE_VALUE)
+   {
+      CloseHandle((*server)->pendingPipe);
+   }
+
    free((*server)->pipeName);
    free(*server);
    *server = NULL;
@@ -301,25 +378,42 @@ EXIT:
 void SetStopFlag(PSERVER server)
 {
    server->closeFlag = TRUE;
+   CancelSynchronousIo(server->runningThread);
+   CloseHandle(server->pendingPipe);
+   server->pendingPipe = INVALID_HANDLE_VALUE;
 }
 
-STATUS Run(PSERVER server)
+void DisposeClient(PSERVER server, UINT32 index)
 {
+   server->activeThreads--;
+
+   CloseHandle(server->hIOThreadsArray[index]);
+   server->hIOThreadsArray[index] = NULL;
+
+   TerminateClientSession(&server->loggedClients[index]);
+   server->loggedClients[index] = NULL;
+}
+
+DWORD WINAPI Run(LPVOID argument)
+{
+   PSERVER server;
    BOOL clientConnected;
    HANDLE pipeHandle;
    PCLIENT_SESSION clientSession;
    PTHREAD_CONTEXT threadContext;
    STATUS status;
+   UINT32 next;
 
+   next = 0;
    threadContext = NULL;
    clientSession = NULL;
    clientConnected = FALSE;
    pipeHandle = INVALID_HANDLE_VALUE;
    status = EXIT_SUCCESS_STATUS;
+   server = (PSERVER)argument;
 
    for (;;)
    {
-      server->closeFlag = TRUE;
       if (server->closeFlag)
       {
          Log(globals.logger, 1, TEXT("[INFO] Encountered stop flag. Stopping!\n"));
@@ -327,6 +421,32 @@ STATUS Run(PSERVER server)
       }
       threadContext = NULL;
       clientSession = NULL;
+
+      if (server->activeThreads == server->noMaxIOThreads)
+      {
+         do
+         {
+            next = WaitForMultipleObjects(server->noMaxIOThreads, server->hIOThreadsArray, FALSE, DEFAULT_THREAD_SLEEP);
+            if (next >= WAIT_OBJECT_0 && next < WAIT_OBJECT_0 + server->noMaxIOThreads)
+            {
+               break;
+            }
+         }
+         while (next == WAIT_TIMEOUT);
+         if (next >= WAIT_OBJECT_0 && next < WAIT_OBJECT_0 + server->noMaxIOThreads)
+         {
+            DisposeClient(server, next);
+         }
+         else
+         {
+            status = next;
+            goto EXIT;
+         }
+      }
+      else
+      {
+         next = server->activeThreads;
+      }
 
       status = InitialiseNamedPipe(server->pipeName, &pipeHandle);
       if (!SUCCESS(status))
@@ -337,13 +457,16 @@ STATUS Run(PSERVER server)
       }
       printf("[INFO] Pipe created on main thread. Awaiting clients...\n");
       Log(globals.logger, 1, "[INFO] Pipe created on main thread. Awaiting clients...\n");
+
+      server->pendingPipe = pipeHandle;
       clientConnected = ConnectNamedPipe(pipeHandle, NULL);
 
       if (clientConnected)
       {
+         server->pendingPipe = INVALID_HANDLE_VALUE;
          printf("[INFO] New client connected. Beginning new session.\n");
          Log(globals.logger, 1, "[INFO] New client connected. Beginning new session.\n");
-         status = CreateClientSession(&clientSession, pipeHandle);
+         status = CreateClientSession(&clientSession, pipeHandle, server->servedClients++);
          if (!SUCCESS(status))
          {
             printf("[INFO] Couldn't begin a new session for new client. Aborting!\n");
@@ -351,7 +474,7 @@ STATUS Run(PSERVER server)
             goto EXIT;
          }
 
-         status = CreateThreadContext(&threadContext, Reference(server), clientSession);
+         status = CreateThreadContext(&threadContext, server, clientSession);
          if (!SUCCESS(status))
          {
             printf("[INFO] Couldn't create a thread context for new client. Aborting!\n");
@@ -359,15 +482,31 @@ STATUS Run(PSERVER server)
             goto EXIT;
          }
 
+         server->loggedClients[next] = clientSession;
+         server->activeThreads++;
+
+
          printf("[INFO] Initiating new session with client...\n");
          Log(globals.logger, 1, "[INFO] Initiating new session with client...\n");
-         ServeClient((LPVOID)threadContext);
+         server->hIOThreadsArray[next] = CreateThread(NULL, 0, ServeClient, threadContext, 0, &server->dwIOThreadsArray[next]);
+
+         if (server->hIOThreadsArray[next] == NULL)
+         {
+            printf("[INFO] Thread Create failed.\n");
+            Log(globals.logger, 1, "[INFO] Thread Create failed.\n");
+            server->activeThreads--;
+            goto EXIT;
+         }
       }
       else
       {
          printf("[INFO] No client connected!\n");
          Log(globals.logger, 1, "[INFO] No client connected!\n");
-         CloseHandle(pipeHandle);
+         if (server->pendingPipe != INVALID_HANDLE_VALUE)
+         {
+            CloseHandle(server->pendingPipe);
+            server->pendingPipe = INVALID_HANDLE_VALUE;
+         }
       }
    }
 
@@ -376,189 +515,464 @@ EXIT:
    {
       TerminateClientSession(&clientSession);
       DestroyThreadContext(&threadContext);
-      SetStopFlag(server);
+      server->closeFlag = TRUE;
    }
+   return status;
+}
+
+STATUS LogIn(PSERVER server, LPSTR userName, LPSTR password)
+{
+   STATUS status;
+   BOOL userExists;
+   PUSER tempUser;
+   DWORD i;
+
+   i = 0;
+   tempUser = NULL;
+   userExists = FALSE;
+   status = EXIT_SUCCESS_STATUS;
+
+   status = CreateUser(&tempUser, userName, password);
+   if (!SUCCESS(status))
+   {
+      goto EXIT;
+   }
+
+   userExists = ExistsElement(server->users, tempUser, EqualUsers);
+   if (!userExists)
+   {
+      status = INVALID_USER_OR_PASSWORD;
+      goto EXIT;
+   }
+
+   userExists = FALSE;
+   for (i = 0; i < server->noMaxIOThreads && !userExists; ++i)
+   {
+      if (server->loggedClients[i] != NULL && server->loggedClients[i]->userName != NULL)
+      {
+         userExists = strcmp(server->loggedClients[i]->userName, userName) == 0 && !server->loggedClients[i]->finished;
+      }
+   }
+
+   if (userExists)
+   {
+      status = USER_ALREADY_LOGGED_IN;
+      goto EXIT;
+   }
+
+EXIT:
+   DestroyUser(&tempUser);
+   return status;
+}
+
+STATUS LogOut(PSERVER server, LPSTR userName)
+{
+   STATUS status;
+   BOOL userLoggedIn;
+   DWORD i;
+
+   i = 0;
+   status = EXIT_SUCCESS_STATUS;
+   userLoggedIn = FALSE;
+
+   for (i = 0; i < server->noMaxIOThreads && !userLoggedIn; ++i)
+   {
+      if (server->loggedClients[i] != NULL && server->loggedClients[i]->userName != NULL)
+      {
+         userLoggedIn = strcmp(server->loggedClients[i]->userName, userName) == 0 && !server->loggedClients[i]->finished;
+         if (userLoggedIn)
+         {
+            server->loggedClients[i]->finished = TRUE;
+         }
+      }
+   }
+
+   if (!userLoggedIn)
+   {
+      status = USER_NOT_LOGGED_IN;
+   }
+
+   return status;
+}
+
+void Encrypt(LPSTR encryptStr, DWORD encryptSize, LPSTR key, DWORD keySize)
+{
+   DWORD i;
+
+   for (i = 0; i < encryptSize; ++i)
+   {
+      encryptStr[i] ^= key[i % keySize];
+   }
+}
+
+STATUS HandleLogoutRequest(PSERVER server, PMESSAGE request, PMESSAGE* response)
+{
+   STATUS status;
+   PMESSAGE tempResponse;
+   LPSTR respBuffer;
+   BOOL loggedUser;
+
+   loggedUser = FALSE;
+   respBuffer = NULL;
+   tempResponse = NULL;
+   status = EXIT_SUCCESS_STATUS;
+
+   Log(globals.logger, 3, "[INFO] Received logout request for user ", request->messageBuffer, ".\n");
+
+   if(NULL == response)
+   {
+      Log(globals.logger, 1, "[WARNING] Null parameter received. Aborting logout request execution!\n");
+      status = NULL_POINTER;
+      goto EXIT;
+   }
+
+   status = CreateMessage(&tempResponse);
+   if (!SUCCESS(status))
+   {
+      goto EXIT;
+   }
+
+   status = LogOut(server, request->messageBuffer);
+   if (!SUCCESS(status))
+   {
+      tempResponse->messageType = FAILURE_RESPONSE;
+   }
+   else
+   {
+      tempResponse->messageType = OK_RESPONSE;
+   }
+   respBuffer = GetErrorMessage(status);
+   
+   status = AddBuffer(tempResponse, respBuffer, TRUE);
+   if (!SUCCESS(status))
+   {
+      goto EXIT;
+   }
+
+   *response = tempResponse;
+
+EXIT:
+   if (!SUCCESS(status))
+   {
+      DestroyMessage(&tempResponse);
+   }
+   free(respBuffer);
+   respBuffer = NULL;
+
+   respBuffer = GetErrorMessage(status);
+   Log(globals.logger, 5, "[INFO] Logout response for user ", request->messageBuffer, " finished with exitcode:", respBuffer, "\n");
+   free(respBuffer);
+   respBuffer = NULL;
+
+   return status;
+}
+
+STATUS HandleLoginRequest(PSERVER server, PCLIENT_SESSION clientSession, PMESSAGE request, PMESSAGE* response)
+{
+   STATUS status;
+   PMESSAGE tempResponse;
+   LPSTR respBuffer;
+   DWORD noBuffers, idx, username, password, key;
+
+   noBuffers = 0;
+   idx = 0;
+   tempResponse = NULL;
+   username = 0;
+   password = 0;
+   key = 0;
+   status = EXIT_SUCCESS_STATUS;
+   respBuffer = NULL;
+
+   Log(globals.logger, 3, "[INFO] Received login request for user ", request->messageBuffer, ".\n");
+
+   if (NULL == response)
+   {
+      Log(globals.logger, 1, "[WARNING] Null parameter received. Aborting login request execution!\n");
+      status = NULL_POINTER;
+      goto EXIT;
+   }
+
+   status = CreateMessage(&tempResponse);
+   if (!SUCCESS(status))
+   {
+      goto EXIT;
+   }
+
+
+   if (clientSession->userName != NULL)
+   {
+      tempResponse->messageType = FAILURE_RESPONSE;
+      respBuffer = GetErrorMessage(SESSION_ALREADY_HAS_USER);
+      status = AddBuffer(tempResponse, respBuffer, TRUE);
+      goto EXIT;
+   }
+
+   for (idx = 0; idx < request->messageLength; ++idx)
+   {
+      if (request->messageBuffer[idx] == '\0')
+      {
+         noBuffers++;
+         if (noBuffers == 1) password = idx + 2;
+         if (noBuffers == 2) key = idx + 2;
+      }
+   }
+   //username, pass, key
+   if (noBuffers != 3)
+   {
+      tempResponse->messageType = FAILURE_RESPONSE;
+      respBuffer = GetErrorMessage(INVALID_NO_BUFFERS);
+      status = AddBuffer(tempResponse, respBuffer, TRUE);
+      goto EXIT;
+   }
+
+   status = LogIn(server, request->messageBuffer + username, request->messageBuffer + password);
+   respBuffer = GetErrorMessage(status);
+   AddBuffer(tempResponse, respBuffer, TRUE);
+   if (!SUCCESS(status))
+   {
+      tempResponse->messageType = FAILURE_RESPONSE;
+      if (!INTERNAL_ERROR(status))
+      {
+         status = EXIT_SUCCESS_STATUS;
+      }
+   }
+   else
+   {
+      tempResponse->messageType = OK_RESPONSE;
+      status = AssignUserName(clientSession, request->messageBuffer + username);
+      if (!SUCCESS(status))
+      {
+         goto EXIT;
+      }
+      status = AssignKey(clientSession, request->messageBuffer + key);
+   }
+   *response = tempResponse;
+
+
+EXIT:
+   if (!SUCCESS(status))
+   {
+      DestroyMessage(&tempResponse);
+   }
+   free(respBuffer);
+   respBuffer = NULL;
+
+   respBuffer = GetErrorMessage(status);
+   Log(globals.logger, 5, "[INFO] Login response for user ", request->messageBuffer, " finished with exitcode:", respBuffer, "\n");
+   free(respBuffer);
+   respBuffer = NULL;
+
+
+   return status;
+}
+
+STATUS HandleUnkownRequest(PMESSAGE* response)
+{
+   STATUS status;
+   PMESSAGE tempResponse;
+   LPSTR respBuffer;
+
+   respBuffer = NULL;
+   tempResponse = NULL;
+   status = EXIT_SUCCESS_STATUS;
+
+   Log(globals.logger, 1, "[INFO] Received unknown request!\n");
+
+   if (NULL == response)
+   {
+      Log(globals.logger, 1, "[WARNING] Null parameter received. Aborting unknown request execution!\n");
+      status = NULL_POINTER;
+      goto EXIT;
+   }
+
+   status = CreateMessage(&tempResponse);
+   if (!SUCCESS(status))
+   {
+      goto EXIT;
+   }
+
+   tempResponse->messageType = FAILURE_RESPONSE;
+   respBuffer = GetErrorMessage(UNKNOWN_REQUEST);
+   status = AddBuffer(tempResponse, respBuffer, TRUE);
+   if (!SUCCESS(status))
+   {
+      goto EXIT;
+   }
+   *response = tempResponse;
+
+EXIT:
+   if (!SUCCESS(status))
+   {
+      DestroyMessage(&tempResponse);
+   }
+   free(respBuffer);
+   respBuffer = NULL;
+   return status;
+}
+
+STATUS HandleEncryptRequest(PSERVER server, PCLIENT_SESSION clientSession, PMESSAGE request, PMESSAGE* response)
+{
+   STATUS status;
+   PMESSAGE tempResponse; 
+   LPSTR respBuffer;
+
+   respBuffer = NULL;
+   tempResponse = NULL;
+   status = EXIT_SUCCESS_STATUS;
+   UNREFERENCED_PARAMETER(server);
+
+   Log(globals.logger, 3, "[INFO] Received encrypt request for user ", clientSession->userName, ".\n");
+
+   if (NULL == response)
+   {
+      Log(globals.logger, 1, "[WARNING] Null parameter received. Aborting encrypt request execution!\n");
+      status = NULL_POINTER;
+      goto EXIT;
+   }
+
+   status = CreateMessage(&tempResponse);
+   if (!SUCCESS(status))
+   {
+      goto EXIT;
+   }
+
+   if(clientSession->userName == NULL || clientSession->finished)
+   {
+      tempResponse->messageType = FAILURE_RESPONSE;
+      respBuffer = GetErrorMessage(USER_NOT_LOGGED_IN);
+      status = AddBuffer(tempResponse, respBuffer, TRUE);
+      if (!SUCCESS(status))
+      {
+         goto EXIT;
+      }
+   }
+   else
+   {
+      tempResponse->messageType = ENCRYPT_RESPONSE;
+      Encrypt(request->messageBuffer, request->messageLength, clientSession->key, clientSession->keySize);
+      status = AddBuffer(tempResponse, request->messageBuffer, FALSE);
+      if(!SUCCESS(status))
+      {
+         goto EXIT;
+      }
+   }
+
+   *response = tempResponse;
+
+
+EXIT:
+   if (!SUCCESS(status))
+   {
+      DestroyMessage(&tempResponse);
+   }
+   free(respBuffer);
+   respBuffer = NULL;
+
+   respBuffer = GetErrorMessage(status);
+   Log(globals.logger, 5, "[INFO] Encrypt response for user ", clientSession->userName, " finished with exitcode:", respBuffer, "\n");
+   free(respBuffer);
+   respBuffer = NULL;
+
+
+   return status;
+}
+
+STATUS HandleRequest(PSERVER server, PCLIENT_SESSION clientSession, PMESSAGE request, PMESSAGE* response)
+{
+   STATUS status;
+
+   status = EXIT_SUCCESS_STATUS;
+
+   if (NULL == response)
+   {
+      status = NULL_POINTER;
+      goto EXIT;
+   }
+
+   switch (request->messageType)
+   {
+   case LOGIN_REQUEST:
+      status = HandleLoginRequest(server, clientSession, request, response);
+      break;
+   case LOGOUT_REQUEST:
+      status = HandleLogoutRequest(server, request, response);
+      break;
+   case ENCRYPT_REQUEST:
+      status = HandleEncryptRequest(server, clientSession, request, response);
+      break;
+   default:
+      status = HandleUnkownRequest(response);
+      break;
+   }
+
+
+EXIT:
    return status;
 }
 
 DWORD WINAPI ServeClient(LPVOID lpvParam)
 {
    PTHREAD_CONTEXT threadContext;
-   CHAR* requestBuffer;
-   CHAR* replyBuffer;
-   CHAR* statusBuffer;
+   PSERVER server;
+   PCLIENT_SESSION clientSession;
    STATUS status;
-   DWORD readBytes;
-   DWORD writtenBytes;
-   DWORD replyBytes;
-   DWORD sleepTime;
-   DWORD totalAvailableBytes;
    HANDLE pipeHandle;
-   BOOL successOperation;
-   BOOL stop;
+   LPSTR statusBuffer;
+   PMESSAGE request;
+   PMESSAGE response;
 
-   stop = FALSE;
-   successOperation = FALSE;
+   server = NULL;
+   clientSession = NULL;
+   request = NULL;
+   response = NULL;
+   statusBuffer = NULL;
    pipeHandle = INVALID_HANDLE_VALUE;
-   readBytes = 0;
-   writtenBytes = 0;
-   replyBytes = 0;
-   sleepTime = 0;
-   totalAvailableBytes = 0;
    status = EXIT_SUCCESS_STATUS;
    threadContext = NULL;
-   requestBuffer = NULL;
-   replyBuffer = NULL;
-   statusBuffer = NULL;
 
    if (NULL == lpvParam)
    {
       printf("[INFO] Null parameter received. Aborting execution!\n");
-      Log(globals.logger, 1, "[INFO] Null parameter received. Aborting execution!\n");
+      Log(globals.logger, 1, "[WARNING] Null parameter received. Aborting thread execution!\n");
       status = NULL_POINTER;
       goto EXIT;
    }
 
    threadContext = (PTHREAD_CONTEXT)lpvParam;
-   pipeHandle = threadContext->clientSession->pipeHandle;
+   server = threadContext->server;
+   clientSession = threadContext->clientSession;
+   pipeHandle = clientSession->pipeHandle;
 
-   //TO DO ADD LOG
-   requestBuffer = (CHAR*)malloc((1 + REQUEST_BUFFER_SIZE) * sizeof(CHAR));
-   if (NULL == requestBuffer)
+
+   while (!clientSession->finished)
    {
-      printf("[INFO] Not enough memory for request buffer. Aborting execution!\n");
-      Log(globals.logger, 1, "[INFO] Not enough memory for request buffer. Aborting execution!\n");
-      status = BAD_ALLOCATION;
-      goto EXIT;
-   }
-
-   //TO DO ADD LOG
-   replyBuffer = (CHAR*)malloc((1 + REPLY_BUFFER_SIZE) * sizeof(CHAR));
-   if (NULL == replyBuffer)
-   {
-      printf("[INFO] Not enough memory for reply buffer. Aborting execution!\n");
-      Log(globals.logger, 1, "[INFO] Not enough memory for reply buffer. Aborting execution!\n");
-      status = BAD_ALLOCATION;
-      goto EXIT;
-   }
-
-   printf("[INFO] Successfuly allocated all resources.\n");
-   Log(globals.logger, 1, "[INFO] Successfuly allocated all resources.\n");
-
-   while (!stop)
-   {
-      //Check if we have data available on pipe
-      successOperation = PeekNamedPipe(
-         pipeHandle,
-         NULL,
-         0,
-         NULL,
-         &totalAvailableBytes,
-         NULL);
-
-      //We couldn't peek the pipe
-      if (!successOperation)
+      status = ReadMessage(pipeHandle, &request);
+      if (!SUCCESS(status))
       {
-         status = GetLastError();
          goto EXIT;
       }
-
-      //There is no data on pipe
-      if (totalAvailableBytes == 0)
+      clientSession->lastActivity = GetTickCount64();
+      status = HandleRequest(server, clientSession, request, &response);
+      if (!clientSession->timeout)
       {
-         //Check if we can't wait anymore for this client 
-         if (sleepTime >= DEFAULT_TIME_OUT_VALUE)
-         {
-            status = TIMEOUT_FAILURE;
-            goto EXIT;
-         }
-         //We can
-         else
-         {
-            printf("[INFO] No data available. Sleeping!\n");
-            Log(globals.logger, 1, "[INFO] No data available. Sleeping!\n");
-            sleepTime += DEFAULT_SLEEP_TIME;
-            Sleep(DEFAULT_SLEEP_TIME);
-            continue;
-         }
+         status = WriteMessage(pipeHandle, response);
+         clientSession->lastActivity = GetTickCount64();
       }
-
-      // WE GOT DATA
-      // reset counter for timeout
-      sleepTime = 0;
-
-      //Read data
-      successOperation = ReadFile(
-         pipeHandle,
-         requestBuffer,
-         REQUEST_BUFFER_SIZE * sizeof(CHAR),
-         &readBytes,
-         NULL);
-
-      if (GetLastError() == ERROR_MORE_DATA)
-      {
-         successOperation = TRUE;
-      }
-
-
-      if (!successOperation || readBytes == 0)
-      {
-         //TO DO ADD LOG
-         if (GetLastError() == ERROR_BROKEN_PIPE)
-         {
-            printf("[INFO] Client disconnected.\n");
-            Log(globals.logger, 1, "[INFO] Client disconnected.\n");
-            status = ERROR_BROKEN_PIPE;
-            goto EXIT;
-         }
-         else
-         {
-            printf("[INFO] Read file failed. Aborting execution");
-            Log(globals.logger, 1, "[INFO] Read file failed. Aborting execution");
-            status = GetLastError();
-            goto EXIT;
-         }
-      }
-
-      requestBuffer[readBytes / sizeof(CHAR)] = '\0';
-
-      printf("[INFO] Sucessfuly received message: %s\n", requestBuffer);
-      Log(globals.logger, 3, "[INFO] Sucessfuly received message: ", requestBuffer,"\n");
-      replyBytes = readBytes / sizeof(CHAR);
-      successOperation = WriteFile(
-         pipeHandle,
-         requestBuffer,
-         replyBytes,
-         &writtenBytes,
-         NULL
-      );
-
-      if (!successOperation || writtenBytes != replyBytes)
-      {
-         printf("[INFO] Write file failed. Aborting execution.\n");
-         Log(globals.logger, 1, "[INFO] Write file failed. Aborting execution.\n");
-         status = GetLastError();
-         goto EXIT;
-      }
+      DestroyMessage(&request);
+      DestroyMessage(&response);
    }
-
-
-   FlushFileBuffers(pipeHandle);
-
-
-   //DELETE ME!!!!!!!!!!!!!!!!!!!!
-   SetStopFlag(threadContext->server);
 
 
 EXIT:
    DisconnectNamedPipe(pipeHandle);
-   free(requestBuffer);
-   free(replyBuffer);
-   DestroyThreadContext(&threadContext);
 
+   DestroyMessage(&request);
+   DestroyMessage(&response);
    statusBuffer = GetErrorMessage(status);
    Log(globals.logger, 3, "[INFO] Finishing thread execution. Exit code: ", statusBuffer, "\n");
    free(statusBuffer);
+   clientSession->finished = TRUE;
 
+   DestroyThreadContext(&threadContext);
    return (DWORD)status;
 }
