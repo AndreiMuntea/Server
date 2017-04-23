@@ -227,6 +227,50 @@ EXIT:
    return status;
 }
 
+DWORD WINAPI HearthBeat(LPVOID argument)
+{
+   CRITICAL_SECTION section;
+   ULONG64 current;
+   PSERVER server;
+   DWORD i;
+   BOOL clientConnected;
+
+   i = 0;
+   server = (PSERVER)argument;
+   InitializeCriticalSection(&section);
+   clientConnected = FALSE;
+
+   while(1)
+   {
+      clientConnected = FALSE;
+      current = GetTickCount64();
+      for (i = 0; i < server->noMaxIOThreads; ++i)
+      {
+         EnterCriticalSection(&section);
+         if (server->loggedClients[i] != NULL && !server->loggedClients[i]->finished)
+         {  
+            clientConnected = TRUE;
+            if(current - server->loggedClients[i]->lastActivity > DEFAULT_TIME_OUT_VALUE)
+            {
+               CancelIoEx(server->loggedClients[i]->pipeHandle, NULL);
+               server->loggedClients[i]->timeout = TRUE;
+            }
+         }
+         LeaveCriticalSection(&section);
+      }
+
+      if (!clientConnected && server->closeFlag)
+      {
+         break;
+      }
+      Sleep(60000);
+   }
+  
+
+   DeleteCriticalSection(&section);
+   return EXIT_SUCCESS_STATUS;
+}
+
 STATUS CreateServer(PSERVER* server, LPCSTR pipeFileName, LPCSTR usersFileName, DWORD maxIOThreadsNumber)
 {
    STATUS status;
@@ -236,6 +280,7 @@ STATUS CreateServer(PSERVER* server, LPCSTR pipeFileName, LPCSTR usersFileName, 
    PCLIENT_SESSION* tempLoggedClients;
    HANDLE* tempHIOThreadsArray;
    HANDLE runningThread;
+   HANDLE hearthBeatThread;
    DWORD* tempDWIOThreadsArray;
    DWORD i;
 
@@ -248,6 +293,7 @@ STATUS CreateServer(PSERVER* server, LPCSTR pipeFileName, LPCSTR usersFileName, 
    tempLoggedClients = NULL;
    tempHIOThreadsArray = NULL;
    tempDWIOThreadsArray = NULL;
+   hearthBeatThread = NULL;
 
    CreatePipeName(&pipeName, pipeFileName);
    if (!SUCCESS(status))
@@ -309,6 +355,13 @@ STATUS CreateServer(PSERVER* server, LPCSTR pipeFileName, LPCSTR usersFileName, 
       tempLoggedClients[i] = NULL;
    }
 
+   hearthBeatThread = CreateThread(NULL, 0, HearthBeat, tempServer, 0, NULL);
+   if(NULL == hearthBeatThread)
+   {
+      status = CREATE_THREAD_FAILED;
+      goto EXIT;
+   }
+
    *server = tempServer;
 
 
@@ -357,6 +410,10 @@ void DestroyServer(PSERVER* server)
          TerminateClientSession(&(*server)->loggedClients[i]);
       }
    }
+
+   WaitForSingleObject((*server)->heartBeatThread, INFINITE);
+   (*server)->heartBeatThread = NULL;
+
 
    free((*server)->dwIOThreadsArray);
    free((*server)->hIOThreadsArray);
@@ -451,11 +508,9 @@ DWORD WINAPI Run(LPVOID argument)
       status = InitialiseNamedPipe(server->pipeName, &pipeHandle);
       if (!SUCCESS(status))
       {
-         printf("[INFO] Couldn't initialise pipe on main thread. Aborting execution!\n");
          Log(globals.logger, 1, "[INFO] Couldn't initialise pipe on main thread. Aborting execution!\n");
          goto EXIT;
       }
-      printf("[INFO] Pipe created on main thread. Awaiting clients...\n");
       Log(globals.logger, 1, "[INFO] Pipe created on main thread. Awaiting clients...\n");
 
       server->pendingPipe = pipeHandle;
@@ -464,12 +519,10 @@ DWORD WINAPI Run(LPVOID argument)
       if (clientConnected)
       {
          server->pendingPipe = INVALID_HANDLE_VALUE;
-         printf("[INFO] New client connected. Beginning new session.\n");
          Log(globals.logger, 1, "[INFO] New client connected. Beginning new session.\n");
          status = CreateClientSession(&clientSession, pipeHandle, server->servedClients++);
          if (!SUCCESS(status))
          {
-            printf("[INFO] Couldn't begin a new session for new client. Aborting!\n");
             Log(globals.logger, 1, "[INFO] Couldn't begin a new session for new client. Aborting!\n");
             goto EXIT;
          }
@@ -477,7 +530,6 @@ DWORD WINAPI Run(LPVOID argument)
          status = CreateThreadContext(&threadContext, server, clientSession);
          if (!SUCCESS(status))
          {
-            printf("[INFO] Couldn't create a thread context for new client. Aborting!\n");
             Log(globals.logger, 1, "[INFO] Couldn't create a thread context for new client. Aborting!\n");
             goto EXIT;
          }
@@ -485,14 +537,11 @@ DWORD WINAPI Run(LPVOID argument)
          server->loggedClients[next] = clientSession;
          server->activeThreads++;
 
-
-         printf("[INFO] Initiating new session with client...\n");
          Log(globals.logger, 1, "[INFO] Initiating new session with client...\n");
          server->hIOThreadsArray[next] = CreateThread(NULL, 0, ServeClient, threadContext, 0, &server->dwIOThreadsArray[next]);
 
          if (server->hIOThreadsArray[next] == NULL)
          {
-            printf("[INFO] Thread Create failed.\n");
             Log(globals.logger, 1, "[INFO] Thread Create failed.\n");
             server->activeThreads--;
             goto EXIT;
@@ -500,7 +549,6 @@ DWORD WINAPI Run(LPVOID argument)
       }
       else
       {
-         printf("[INFO] No client connected!\n");
          Log(globals.logger, 1, "[INFO] No client connected!\n");
          if (server->pendingPipe != INVALID_HANDLE_VALUE)
          {
@@ -850,6 +898,7 @@ STATUS HandleEncryptRequest(PSERVER server, PCLIENT_SESSION clientSession, PMESS
    {
       tempResponse->messageType = ENCRYPT_RESPONSE;
       Encrypt(request->messageBuffer, request->messageLength, clientSession->key, clientSession->keySize);
+      clientSession->totalBytesEncrypted += request->messageLength;
       status = AddBuffer(tempResponse, request->messageBuffer, FALSE);
       if(!SUCCESS(status))
       {
@@ -910,6 +959,78 @@ EXIT:
    return status;
 }
 
+STATUS HandleInitialiseRequest(PSERVER server, PMESSAGE* response, PHANDLE newHandle)
+{
+   STATUS status;
+   PMESSAGE tempResponse;
+   LPSTR respBuffer;
+   LPSTR pipeName;
+
+   pipeName = NULL;
+   respBuffer = NULL;
+   tempResponse = NULL;
+   status = EXIT_SUCCESS_STATUS;
+
+   Log(globals.logger, 1, "[INFO] Received unknown request!\n");
+
+   if (NULL == response)
+   {
+      Log(globals.logger, 1, "[WARNING] Null parameter received. Aborting unknown request execution!\n");
+      status = NULL_POINTER;
+      goto EXIT;
+   }
+
+   status = CreateMessage(&tempResponse);
+   if (!SUCCESS(status))
+   {
+      goto EXIT;
+   }
+
+   status = NumberToString(&respBuffer, server->servedClients);
+   if(!SUCCESS(status))
+   {
+      goto EXIT;
+   }
+   status = CreatePipeName(&pipeName, respBuffer);
+   if(!SUCCESS(status))
+   {
+      goto EXIT;
+   }
+   
+   status = InitialiseNamedPipe(pipeName, newHandle);
+   if (!SUCCESS(status))
+   {
+      goto EXIT;
+   }
+   
+   status = AddBuffer(tempResponse, pipeName, TRUE);
+   if (!SUCCESS(status))
+   {
+      goto EXIT;
+   }
+
+   tempResponse->messageType = INITIALISE_CONNECTION_RESPONSE;
+
+   *response = tempResponse;
+
+EXIT:
+   if (!SUCCESS(status))
+   {
+      free(pipeName);
+      pipeName = NULL;
+      if((*newHandle) != INVALID_HANDLE_VALUE)
+      {
+         CloseHandle(*newHandle);
+         *newHandle = INVALID_HANDLE_VALUE;
+      }
+      DestroyMessage(&tempResponse);
+   }
+   free(respBuffer);
+   respBuffer = NULL;
+   return status;
+}
+
+
 DWORD WINAPI ServeClient(LPVOID lpvParam)
 {
    PTHREAD_CONTEXT threadContext;
@@ -932,7 +1053,6 @@ DWORD WINAPI ServeClient(LPVOID lpvParam)
 
    if (NULL == lpvParam)
    {
-      printf("[INFO] Null parameter received. Aborting execution!\n");
       Log(globals.logger, 1, "[WARNING] Null parameter received. Aborting thread execution!\n");
       status = NULL_POINTER;
       goto EXIT;
@@ -941,22 +1061,53 @@ DWORD WINAPI ServeClient(LPVOID lpvParam)
    threadContext = (PTHREAD_CONTEXT)lpvParam;
    server = threadContext->server;
    clientSession = threadContext->clientSession;
-   pipeHandle = clientSession->pipeHandle;
+   
+   status = HandleInitialiseRequest(server, &response, &pipeHandle);
+   if(!SUCCESS(status))
+   {
+      goto EXIT;
+   }
+  
+   status = WriteMessage(clientSession->pipeHandle, response);
+   if(!SUCCESS(status))
+   {
+      goto EXIT;
+   }
+
+   clientSession->pipeHandle = pipeHandle;
+   clientSession->lastActivity = GetTickCount64();
+   ConnectNamedPipe(pipeHandle, NULL);
 
 
    while (!clientSession->finished)
    {
-      status = ReadMessage(pipeHandle, &request);
-      if (!SUCCESS(status))
+      if (!clientSession->timeout) 
       {
-         goto EXIT;
+         status = ReadMessage(pipeHandle, &request);
+         if (!SUCCESS(status))
+         {
+            goto EXIT;
+         }
+         clientSession->lastActivity = GetTickCount64();
+         status = HandleRequest(server, clientSession, request, &response);
       }
-      clientSession->lastActivity = GetTickCount64();
-      status = HandleRequest(server, clientSession, request, &response);
       if (!clientSession->timeout)
       {
          status = WriteMessage(pipeHandle, response);
          clientSession->lastActivity = GetTickCount64();
+      }
+      else
+      {
+         if (clientSession->userName != NULL)
+         {
+            Log(globals.logger, 3, "[INFO] User ",clientSession->userName, " disconnected due to timeout!\n");
+         }
+         else
+         {
+            Log(globals.logger, 1, "[INFO] Unknown user disconnected due to timeout!\n");
+         }
+         status = TIMEOUT_FAILURE;
+         break;
       }
       DestroyMessage(&request);
       DestroyMessage(&response);

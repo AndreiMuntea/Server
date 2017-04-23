@@ -15,6 +15,7 @@ typedef struct _CLIENT_SESSION
    LPSTR userName;
    LPSTR key;
    DWORD keySize;
+   ULONG64 totalBytesEncrypted;
 }CLIENT_SESSION, *PCLIENT_SESSION;
 
 

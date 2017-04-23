@@ -18,6 +18,7 @@ typedef struct _SERVER
    DWORD servedClients;
    HANDLE pendingPipe;
    HANDLE runningThread;
+   HANDLE heartBeatThread;
 
 }SERVER, *PSERVER;
 

@@ -142,6 +142,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Console\src\console.c" />
     <ClCompile Include="Logger\src\logger.c" />
     <ClCompile Include="Protocols\src\protocols.c" />
     <ClCompile Include="Server\src\client_session.c" />
@@ -156,6 +157,7 @@
     <ClCompile Include="Utils\src\thread_pool.c" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Console\include\console.h" />
     <ClInclude Include="Logger\include\logger.h" />
     <ClInclude Include="Protocols\include\protocols.h" />
     <ClInclude Include="Server\include\client_session.h" />

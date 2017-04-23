@@ -162,6 +162,7 @@ STATUS Log(PLOGGER logger, int noMessages, ...)
          goto EXIT;
       }
    }
+   FlushFileBuffers(logger->fileHandle);
 
 
 EXIT:

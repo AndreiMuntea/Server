@@ -11,7 +11,8 @@
 #include "Server/include/global_data.h"
 #include "User/include/user.h"
 #include "Helper/include/constants.h"
-#include "Utils/include/thread_pool.h"
+#include "Helper/include/strutils.h"
+#include "Console/include/console.h"
 
 typedef struct USR
 {
@@ -42,18 +43,45 @@ int main(int argc, char* argv[])
    STATUS status;
    PSERVER server;
    HANDLE runningThread;
-   
+   HANDLE consoleThread;
+   LPSTR pipeName;
+   LPSTR logFileName;
+   DWORD noThreads;
+ 
+   consoleThread = NULL;
+   pipeName = NULL;
+   logFileName = NULL;
    server = NULL;
    runningThread = NULL;
    status = EXIT_SUCCESS_STATUS;
+   noThreads = 8;
 
-   status = InitGlobalData(NULL);
+   if (argc < 2)
+   {
+      printf("Invalid number of arguments!\n");
+      status = -1;
+      goto EXIT;
+   }
+   
+   noThreads = GetNumber(argv[1]);
+
+   if(argc >= 3)
+   {
+      pipeName = argv[2];
+   }
+
+   if(argc >= 4)
+   {
+      logFileName = argv[3];
+   }
+
+   status = InitGlobalData(logFileName);
    if(!SUCCESS(status))
    {
       goto EXIT;
    }
 
-   status = CreateServer(&server, NULL, DEFAULT_USER_FILE_NAME, 4);
+   status = CreateServer(&server, pipeName, DEFAULT_USER_FILE_NAME, noThreads);
    if(!SUCCESS(status))
    {
       goto EXIT;
@@ -66,30 +94,25 @@ int main(int argc, char* argv[])
       goto EXIT;
    }
    server->runningThread = runningThread;
+
+   consoleThread = CreateThread(NULL, 0, RunConsole, server, 0, NULL);
+   if (NULL == runningThread)
+   {
+      status = CREATE_THREAD_FAILED;
+      goto EXIT;
+   }
+
+   WaitForSingleObject(consoleThread, INFINITE);
    WaitForSingleObject(runningThread, INFINITE);
-   
-   
-   /*
-   PTHREAD_POOL thr;
-   PUSR a1 = (PUSR)malloc(sizeof(PUSR)); a1->data = "Ana are mere";
-   PUSR a2 = (PUSR)malloc(sizeof(PUSR)); a2->data = "Marian nu are mere";
-   PUSR a3 = (PUSR)malloc(sizeof(PUSR)); a3->data = "Marian! Il bag in ma-sa de handicapat!";
-   PUSR a4 = (PUSR)malloc(sizeof(PUSR)); a4->data = "Mircea Badea";
-   status = CreateThreadPool(&thr, 5, execTest, DestroyUsr);
-   AddTask(thr, a1);
-   AddTask(thr, a2);
-   AddTask(thr, a4);
-   AddTask(thr, a3);
-   DestroyThreadPool(&thr);
-   */
 
 EXIT:
-   UnitialiseGlobalData();
+
    DestroyServer(&server);
    runningThread = NULL;
+   consoleThread = NULL;
 
    printf("Execution terminated with exitcode %d\n", status);
-
+   UnitialiseGlobalData();
    _CrtDumpMemoryLeaks();
    return status;
 }

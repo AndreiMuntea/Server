@@ -31,6 +31,7 @@ STATUS CreateClientSession(PCLIENT_SESSION* clientSession, HANDLE pipeHandle, DW
    tempSession->key = NULL;
    tempSession->keySize = 0;
    tempSession->timeout = FALSE;
+   tempSession->totalBytesEncrypted = 0;
 
    *clientSession = tempSession;
 

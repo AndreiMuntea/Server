@@ -6,7 +6,7 @@
 #define PIPE_PREFIX              "\\\\.\\pipe\\"
 #define PIPE_DEFAULT_NAME        "hardcoded"
 #define PIPE_NAME_MAX_SIZE       255
-#define DEFAULT_TIME_OUT_VALUE   10000
+#define DEFAULT_TIME_OUT_VALUE   300000
 #define DEFAULT_SLEEP_TIME       500
 
 #define DEFAULT_BUFFER_SIZE      512

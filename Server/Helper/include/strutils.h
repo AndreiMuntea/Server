@@ -19,4 +19,8 @@ STATUS CreatePipeName(LPSTR* dest, LPCSTR source);
  */
 LPSTR GetErrorMessage(STATUS status);
 
+DWORD GetNumber(LPSTR buffer);
+
+STATUS NumberToString(LPSTR* dest, DWORD number);
+
 #endif //UTILS_STRUTILS_H

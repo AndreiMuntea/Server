@@ -135,3 +135,78 @@ LPSTR GetErrorMessage(STATUS status)
 EXIT:
    return buff;
 }
+
+DWORD GetDigitNmb(CHAR c)
+{
+   return c - '0';
+}
+
+DWORD GetNumber(LPSTR buffer)
+{
+   DWORD res, idx, size;
+
+   res = 0;
+   idx = 0;
+   size = strlen(buffer);
+
+   for (idx = 0; idx < size; ++idx)
+   {
+      res *= 10;
+      res += GetDigitNmb(buffer[idx]);
+   }
+
+   return res;
+}
+
+STATUS NumberToString(LPSTR* dest, DWORD number)
+{
+   STATUS status;
+   LPSTR tempBuffer;
+   DWORD i;
+
+   i = 0;
+   tempBuffer = NULL;
+   status = EXIT_SUCCESS_STATUS;
+
+   if(NULL == dest)
+   {
+      status = NULL_POINTER;
+      goto EXIT;
+   }
+
+   tempBuffer = (LPSTR)malloc(20 * sizeof(CHAR));
+   if(NULL == tempBuffer)
+   {
+      status = BAD_ALLOCATION;
+      goto EXIT;
+   }
+
+   for(i = 0; i < 20; ++i)
+   {
+      tempBuffer[i] = 0;
+   }
+
+   if (number == 0)
+   {
+      tempBuffer[0] = '\0';
+   }
+   else
+   {
+      i = 0;
+      while(number > 0)
+      {
+         tempBuffer[i++] = (number % 10) + '0';
+         number /= 10;
+      }
+   }
+
+   *dest = tempBuffer;
+
+
+EXIT:
+   if(!SUCCESS(status))
+   {
+      free(tempBuffer);
+   }
+   return status;
+}
