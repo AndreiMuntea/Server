@@ -16,6 +16,8 @@ void DestroyConcurentQueue(PCONCURENT_QUEUE* queue);
 
 STATUS PopElement(PCONCURENT_QUEUE queue, LPVOID* element);
 
+STATUS PeekElement(PCONCURENT_QUEUE queue, LPVOID* element);
+
 STATUS PushElement(PCONCURENT_QUEUE queue, LPVOID data);
 
 #endif //UTILS_CONCURENT_QUEUE_H

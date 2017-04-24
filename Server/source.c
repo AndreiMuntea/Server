@@ -14,28 +14,6 @@
 #include "Helper/include/strutils.h"
 #include "Console/include/console.h"
 
-typedef struct USR
-{
-   char* data;
-}USR, *PUSR;
-
-void DestroyUsr(PUSR* a)
-{
-   if (NULL == a) goto EXIT;
-   free(*a);
-   *a = NULL;
-EXIT:;
-}
-
-STATUS execTest(LPVOID param)
-{
-   PUSR a = (PUSR)(param);
-   printf("%s\n", a->data);
-
-   DestroyUsr(&a);
-   return EXIT_SUCCESS_STATUS;
-}
-
 
 int main(int argc, char* argv[])
 {
@@ -47,6 +25,7 @@ int main(int argc, char* argv[])
    LPSTR pipeName;
    LPSTR logFileName;
    DWORD noThreads;
+   DWORD noWorkers;
  
    consoleThread = NULL;
    pipeName = NULL;
@@ -55,8 +34,9 @@ int main(int argc, char* argv[])
    runningThread = NULL;
    status = EXIT_SUCCESS_STATUS;
    noThreads = 8;
+   noWorkers = 1;
 
-   if (argc < 2)
+   if (argc < 3)
    {
       printf("Invalid number of arguments!\n");
       status = -1;
@@ -64,15 +44,16 @@ int main(int argc, char* argv[])
    }
    
    noThreads = GetNumber(argv[1]);
-
-   if(argc >= 3)
-   {
-      pipeName = argv[2];
-   }
+   noWorkers = GetNumber(argv[2]);
 
    if(argc >= 4)
    {
-      logFileName = argv[3];
+      pipeName = argv[3];
+   }
+
+   if(argc >= 5)
+   {
+      logFileName = argv[4];
    }
 
    status = InitGlobalData(logFileName);
@@ -81,7 +62,7 @@ int main(int argc, char* argv[])
       goto EXIT;
    }
 
-   status = CreateServer(&server, pipeName, DEFAULT_USER_FILE_NAME, noThreads);
+   status = CreateServer(&server, pipeName, DEFAULT_USER_FILE_NAME, noThreads, noWorkers);
    if(!SUCCESS(status))
    {
       goto EXIT;

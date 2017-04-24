@@ -88,6 +88,7 @@
       <WarningLevel>Level4</WarningLevel>
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <TreatWarningAsError>true</TreatWarningAsError>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -146,9 +147,11 @@
     <ClCompile Include="Logger\src\logger.c" />
     <ClCompile Include="Protocols\src\protocols.c" />
     <ClCompile Include="Server\src\client_session.c" />
+    <ClCompile Include="Server\src\encrypt_package.c" />
     <ClCompile Include="Server\src\global_data.c" />
     <ClCompile Include="Server\src\server.c" />
     <ClCompile Include="Server\src\thread_context.c" />
+    <ClCompile Include="Server\src\thread_pool_argument.c" />
     <ClCompile Include="source.c" />
     <ClCompile Include="Helper\src\strutils.c" />
     <ClCompile Include="User\src\user.c" />
@@ -161,10 +164,12 @@
     <ClInclude Include="Logger\include\logger.h" />
     <ClInclude Include="Protocols\include\protocols.h" />
     <ClInclude Include="Server\include\client_session.h" />
+    <ClInclude Include="Server\include\encrypt_package.h" />
     <ClInclude Include="Server\include\global_data.h" />
     <ClInclude Include="Server\include\server.h" />
     <ClInclude Include="Server\include\thread_context.h" />
     <ClInclude Include="Helper\include\constants.h" />
+    <ClInclude Include="Server\include\thread_pool_argument.h" />
     <ClInclude Include="User\include\user.h" />
     <ClInclude Include="Protocols\include\definitions.h" />
     <ClInclude Include="Helper\include\strutils.h" />

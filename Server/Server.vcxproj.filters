@@ -54,6 +54,12 @@
     <ClCompile Include="Console\src\console.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Server\src\encrypt_package.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Server\src\thread_pool_argument.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Logger\include\logger.h">
@@ -96,6 +102,12 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Console\include\console.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Server\include\encrypt_package.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Server\include\thread_pool_argument.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

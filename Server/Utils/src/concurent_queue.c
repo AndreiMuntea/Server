@@ -73,6 +73,25 @@ EXIT:
    return;
 }
 
+STATUS PeekElement(PCONCURENT_QUEUE queue, LPVOID* element)
+{
+   STATUS status;
+   status = EXIT_SUCCESS_STATUS;
+   EnterCriticalSection(queue->criticalSection);
+
+   if (queue->size == 0)
+   {
+      status = EMPTY_QUEUE;
+      goto EXIT;
+   }
+
+   status = GetElement(queue->list, 0, element);
+
+EXIT:
+   LeaveCriticalSection(queue->criticalSection);
+   return status;
+}
+
 STATUS PopElement(PCONCURENT_QUEUE queue, LPVOID* element)
 {
    STATUS status;

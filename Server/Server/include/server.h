@@ -2,6 +2,7 @@
 #define SERVER_SERVER_H
 #include "../../Logger/include/logger.h"
 #include "../../Utils/include/list.h"
+#include "../../Utils/include/thread_pool.h"
 
 
 typedef struct _SERVER
@@ -19,6 +20,7 @@ typedef struct _SERVER
    HANDLE pendingPipe;
    HANDLE runningThread;
    HANDLE heartBeatThread;
+   PTHREAD_POOL threadPool;
 
 }SERVER, *PSERVER;
 
@@ -32,7 +34,7 @@ typedef struct _SERVER
 * @returns: STATUS - EXIT_SUCCESS_STATUS if instance is created without errors
 *                  - error code otherwise
 */
-STATUS CreateServer(PSERVER* server, LPCSTR pipeFileName, LPCSTR usersFileName, DWORD maxIOThreadsNumber);
+STATUS CreateServer(PSERVER* server, LPCSTR pipeFileName, LPCSTR usersFileName, DWORD maxIOThreadsNumber, DWORD noWorkers);
 
 
 /*

@@ -53,37 +53,48 @@ void StopExecution(PSERVER server)
 
 DWORD WINAPI RunConsole(LPVOID argument)
 {
-   int opt;
+   int opt,vf;
    PSERVER server;
 
    server = (PSERVER)argument;
    opt = -1;
+   vf = '\0';
 
    do
    {
       DisplayMenu();
       printf("What is your command?\n");
-      scanf_s("%d", &opt);
+      opt = getchar();
+      vf = getchar();
+      if(vf != '\n')
+      {
+         goto INVALID;
+      }
       switch (opt)
       {
-      case 1:
+      case '1':
          {
          DisplayInformation(server);
          break;
          }
-      case 2:
+      case '2':
          {
          StopExecution(server);
          break;
          }
       default:
          {
+         INVALID:
+         while (vf != '\n')
+         {
+            vf = getchar();
+         }
          printf("Invalid command! Try again...\n");
          break;
          }
       }
 
-   } while (opt != 2);
+   } while (opt != '2');
 
    return 0;
 }

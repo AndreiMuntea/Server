@@ -10,7 +10,42 @@
 #include "../../User/include/user.h"
 #include "../../Utils/include/thread_pool.h"
 #include "../../Protocols/include/protocols.h"
+#include "../include/encrypt_package.h"
+#include "../include/thread_pool_argument.h"
 
+
+void Encrypt(LPSTR encryptStr, DWORD encryptSize, LPSTR key, DWORD keySize)
+{
+   DWORD i;
+
+   for (i = 0; i < encryptSize; ++i)
+   {
+      encryptStr[i] ^= key[i % keySize];
+   }
+}
+
+STATUS HandleEncryptRequest(LPVOID argument)
+{
+   STATUS status;
+   PTHREAD_POOL_ARGUMENT threadPoolArgument;
+   PCLIENT_SESSION client;
+   PENCRYPT_PACKAGE encryptPackage;
+   PMESSAGE encryptMessage;
+   
+   status = EXIT_SUCCESS_STATUS;
+   threadPoolArgument = (PTHREAD_POOL_ARGUMENT)argument;
+   client = threadPoolArgument->client;
+   encryptPackage = threadPoolArgument->package;
+   encryptMessage = encryptPackage->message;
+
+   Encrypt(encryptMessage->messageBuffer, encryptMessage->messageLength, client->key, client->keySize);
+   client->totalBytesEncrypted += encryptMessage->messageLength;
+   client->lastActivity = GetTickCount64();
+   encryptPackage->encrypted = TRUE;
+
+   DestroyThreadPoolArgument(&threadPoolArgument);
+   return status;
+}
 
 STATUS InitialiseNamedPipe(LPCSTR pipeFileName, PHANDLE pipeHandle)
 {
@@ -229,7 +264,6 @@ EXIT:
 
 DWORD WINAPI HearthBeat(LPVOID argument)
 {
-   CRITICAL_SECTION section;
    ULONG64 current;
    PSERVER server;
    DWORD i;
@@ -237,7 +271,6 @@ DWORD WINAPI HearthBeat(LPVOID argument)
 
    i = 0;
    server = (PSERVER)argument;
-   InitializeCriticalSection(&section);
    clientConnected = FALSE;
 
    while(1)
@@ -246,7 +279,7 @@ DWORD WINAPI HearthBeat(LPVOID argument)
       current = GetTickCount64();
       for (i = 0; i < server->noMaxIOThreads; ++i)
       {
-         EnterCriticalSection(&section);
+         
          if (server->loggedClients[i] != NULL && !server->loggedClients[i]->finished)
          {  
             clientConnected = TRUE;
@@ -256,9 +289,8 @@ DWORD WINAPI HearthBeat(LPVOID argument)
                server->loggedClients[i]->timeout = TRUE;
             }
          }
-         LeaveCriticalSection(&section);
+         
       }
-
       if (!clientConnected && server->closeFlag)
       {
          break;
@@ -267,11 +299,10 @@ DWORD WINAPI HearthBeat(LPVOID argument)
    }
   
 
-   DeleteCriticalSection(&section);
    return EXIT_SUCCESS_STATUS;
 }
 
-STATUS CreateServer(PSERVER* server, LPCSTR pipeFileName, LPCSTR usersFileName, DWORD maxIOThreadsNumber)
+STATUS CreateServer(PSERVER* server, LPCSTR pipeFileName, LPCSTR usersFileName, DWORD maxIOThreadsNumber, DWORD noWorkers)
 {
    STATUS status;
    PSERVER tempServer;
@@ -282,6 +313,7 @@ STATUS CreateServer(PSERVER* server, LPCSTR pipeFileName, LPCSTR usersFileName, 
    HANDLE runningThread;
    HANDLE hearthBeatThread;
    DWORD* tempDWIOThreadsArray;
+   PTHREAD_POOL tempThreadPool;
    DWORD i;
 
    i = 0;
@@ -362,6 +394,14 @@ STATUS CreateServer(PSERVER* server, LPCSTR pipeFileName, LPCSTR usersFileName, 
       goto EXIT;
    }
 
+   status = CreateThreadPool(&tempThreadPool, noWorkers, HandleEncryptRequest, DestroyThreadPoolArgument);
+   if (!SUCCESS(status))
+   {
+      goto EXIT;
+   }
+
+
+   tempServer->threadPool = tempThreadPool;
    *server = tempServer;
 
 
@@ -371,6 +411,7 @@ EXIT:
       free(tempDWIOThreadsArray);
       free(tempHIOThreadsArray);
       free(tempLoggedClients);
+      DestroyThreadPool(&tempThreadPool);
       DestroyList(&tempListUsers);
       DestroyServer(&tempServer);
    }
@@ -414,7 +455,7 @@ void DestroyServer(PSERVER* server)
    WaitForSingleObject((*server)->heartBeatThread, INFINITE);
    (*server)->heartBeatThread = NULL;
 
-
+   DestroyThreadPool(&(*server)->threadPool);
    free((*server)->dwIOThreadsArray);
    free((*server)->hIOThreadsArray);
    free((*server)->loggedClients);
@@ -643,15 +684,7 @@ STATUS LogOut(PSERVER server, LPSTR userName)
    return status;
 }
 
-void Encrypt(LPSTR encryptStr, DWORD encryptSize, LPSTR key, DWORD keySize)
-{
-   DWORD i;
 
-   for (i = 0; i < encryptSize; ++i)
-   {
-      encryptStr[i] ^= key[i % keySize];
-   }
-}
 
 STATUS HandleLogoutRequest(PSERVER server, PMESSAGE request, PMESSAGE* response)
 {
@@ -858,25 +891,23 @@ EXIT:
    return status;
 }
 
-STATUS HandleEncryptRequest(PSERVER server, PCLIENT_SESSION clientSession, PMESSAGE request, PMESSAGE* response)
+
+STATUS PlaceEncryptRequest(PSERVER server, PCLIENT_SESSION clientSession, PMESSAGE request, PMESSAGE* response)
 {
    STATUS status;
    PMESSAGE tempResponse; 
    LPSTR respBuffer;
+   PENCRYPT_PACKAGE package;
+   PTHREAD_POOL_ARGUMENT argument;
 
+   package = NULL;
+   argument = NULL;
    respBuffer = NULL;
    tempResponse = NULL;
    status = EXIT_SUCCESS_STATUS;
    UNREFERENCED_PARAMETER(server);
 
    Log(globals.logger, 3, "[INFO] Received encrypt request for user ", clientSession->userName, ".\n");
-
-   if (NULL == response)
-   {
-      Log(globals.logger, 1, "[WARNING] Null parameter received. Aborting encrypt request execution!\n");
-      status = NULL_POINTER;
-      goto EXIT;
-   }
 
    status = CreateMessage(&tempResponse);
    if (!SUCCESS(status))
@@ -893,16 +924,41 @@ STATUS HandleEncryptRequest(PSERVER server, PCLIENT_SESSION clientSession, PMESS
       {
          goto EXIT;
       }
+      status = WriteMessage(clientSession->pipeHandle, tempResponse);
+      if (!SUCCESS(status))
+      {
+         goto EXIT;
+      }
    }
    else
    {
       tempResponse->messageType = ENCRYPT_RESPONSE;
-      Encrypt(request->messageBuffer, request->messageLength, clientSession->key, clientSession->keySize);
-      clientSession->totalBytesEncrypted += request->messageLength;
-      status = AddBuffer(tempResponse, request->messageBuffer, FALSE);
+      status = FullCopyBuffer(tempResponse, request->messageBuffer, request->messageLength);
+      if (!SUCCESS(status))
+      {
+         goto EXIT;
+      }
+
+      status = CreateEncryptPackage(&package, tempResponse);
       if(!SUCCESS(status))
       {
          goto EXIT;
+      }
+
+      status = CreateThreadPoolArgument(&argument, package, clientSession);
+      if (!SUCCESS(status))
+      {
+         goto EXIT;
+      }
+
+      status = AddTask(server->threadPool, argument);
+      if (!SUCCESS(status))
+      {
+         goto EXIT;
+      }
+      while(!package->encrypted)
+      {
+         Sleep(DEFAULT_THREAD_SLEEP);
       }
    }
 
@@ -912,6 +968,14 @@ STATUS HandleEncryptRequest(PSERVER server, PCLIENT_SESSION clientSession, PMESS
 EXIT:
    if (!SUCCESS(status))
    {
+      if (NULL != argument)
+      {
+         DestroyThreadPoolArgument(&argument);
+      }
+      else
+      {
+         DestroyEncryptPackage(&package);
+      }
       DestroyMessage(&tempResponse);
    }
    free(respBuffer);
@@ -947,7 +1011,7 @@ STATUS HandleRequest(PSERVER server, PCLIENT_SESSION clientSession, PMESSAGE req
       status = HandleLogoutRequest(server, request, response);
       break;
    case ENCRYPT_REQUEST:
-      status = HandleEncryptRequest(server, clientSession, request, response);
+      status = PlaceEncryptRequest(server, clientSession, request, response);
       break;
    default:
       status = HandleUnkownRequest(response);
@@ -1026,6 +1090,8 @@ EXIT:
       DestroyMessage(&tempResponse);
    }
    free(respBuffer);
+   free(pipeName);
+   pipeName = NULL;
    respBuffer = NULL;
    return status;
 }
@@ -1077,6 +1143,7 @@ DWORD WINAPI ServeClient(LPVOID lpvParam)
    clientSession->pipeHandle = pipeHandle;
    clientSession->lastActivity = GetTickCount64();
    ConnectNamedPipe(pipeHandle, NULL);
+   DestroyMessage(&response);
 
 
    while (!clientSession->finished)

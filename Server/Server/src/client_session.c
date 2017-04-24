@@ -1,5 +1,7 @@
 #include "../include/client_session.h"
 #include <Strsafe.h>
+#include "../../Protocols/include/protocols.h"
+#include "../include/encrypt_package.h"
 
 
 STATUS CreateClientSession(PCLIENT_SESSION* clientSession, HANDLE pipeHandle, DWORD sessionID)
@@ -22,6 +24,7 @@ STATUS CreateClientSession(PCLIENT_SESSION* clientSession, HANDLE pipeHandle, DW
       status = BAD_ALLOCATION;
       goto EXIT;
    }
+
 
    tempSession->pipeHandle = pipeHandle;
    tempSession->sessionID = sessionID;
@@ -61,6 +64,7 @@ void TerminateClientSession(PCLIENT_SESSION* clientSession)
    {
       CloseHandle((*clientSession)->pipeHandle);
    }
+
    free((*clientSession)->userName);
    free((*clientSession)->key);
    free(*clientSession);
